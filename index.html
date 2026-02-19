@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tetris Perfect</title>
     <style>
+        /* （省略せずそのまま既存スタイルを使っています） */
         body {
             margin: 0;
             padding: 0;
@@ -19,8 +20,6 @@
             user-select: none;
             -webkit-user-select: none;
         }
-
-        /* ヘッダー */
         header {
             background-color: #1e1e1e;
             padding: 0 20px;
@@ -35,8 +34,6 @@
         .stat-item { text-align: center; }
         .stat-label { font-size: 0.6rem; color: #888; letter-spacing: 1px; }
         .stat-val { font-size: 1.2rem; font-weight: bold; font-family: monospace; color: #eee; }
-
-        /* ゲームエリア */
         #game-area {
             position: relative;
             flex-grow: 1;
@@ -50,8 +47,6 @@
             border: 2px solid #444;
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
         }
-
-        /* NEXT表示 */
         #next-area {
             position: absolute;
             top: 20px;
@@ -65,8 +60,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         #next-canvas { background: transparent; }
-
-        /* オーバーレイ（スタート・ゲームオーバー） */
         #overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -93,8 +86,6 @@
             transition: transform 0.1s;
         }
         #btn-action:active { transform: scale(0.95); }
-
-        /* コントローラー */
         #controls {
             height: 160px;
             background-color: #1e1e1e;
@@ -119,13 +110,10 @@
             transition: all 0.05s;
         }
         .btn:active, .btn.active { transform: translateY(6px); box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); background: #444; }
-        
         .btn-blue { background: #1976D2; box-shadow: 0 6px 0 #0D47A1; color: #fff; }
         .btn-blue:active, .btn-blue.active { background: #2196F3; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
-        
         .btn-red { background: #D32F2F; box-shadow: 0 6px 0 #B71C1C; color: #fff; }
         .btn-red:active, .btn-red.active { background: #F44336; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
-
     </style>
 </head>
 <body>
@@ -163,52 +151,19 @@
     </div>
 
     <script>
-        // --- データ定義 (正方行列で定義することが最重要) ---
-        // 0:Empty, 1:I, 2:J, 3:L, 4:O, 5:S, 6:T, 7:Z
+        /* ===== 既存の PIECES / COLORS / グローバル変数等 (そのまま) ===== */
         const PIECES = [
             null,
-            [ // I (4x4)
-                [0, 0, 0, 0],
-                [1, 1, 1, 1],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0]
-            ],
-            [ // J (3x3)
-                [2, 0, 0],
-                [2, 2, 2],
-                [0, 0, 0]
-            ],
-            [ // L (3x3)
-                [0, 0, 3],
-                [3, 3, 3],
-                [0, 0, 0]
-            ],
-            [ // O (2x2)
-                [4, 4],
-                [4, 4]
-            ],
-            [ // S (3x3)
-                [0, 5, 5],
-                [5, 5, 0],
-                [0, 0, 0]
-            ],
-            [ // T (3x3)
-                [0, 6, 0],
-                [6, 6, 6],
-                [0, 0, 0]
-            ],
-            [ // Z (3x3)
-                [7, 7, 0],
-                [0, 7, 7],
-                [0, 0, 0]
-            ]
+            [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+            [[2,0,0],[2,2,2],[0,0,0]],
+            [[0,0,3],[3,3,3],[0,0,0]],
+            [[4,4],[4,4]],
+            [[0,5,5],[5,5,0],[0,0,0]],
+            [[0,6,0],[6,6,6],[0,0,0]],
+            [[7,7,0],[0,7,7],[0,0,0]]
         ];
+        const COLORS = [null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000'];
 
-        const COLORS = [
-            null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000'
-        ];
-
-        // --- グローバル変数 ---
         const canvas = document.getElementById('tetris');
         const ctx = canvas.getContext('2d');
         const nCanvas = document.getElementById('next-canvas');
@@ -229,15 +184,20 @@
         let isPaused = true;
         let animationId = null;
 
-        // --- オーディオ (Web Audio API) ---
+        /* ===== Web Audio: BGM を含む ===== */
         let audioCtx = null;
-        
+        let bgmInterval = null;
+        let bgmIndex = 0;
+        // シンプルなメロディ（周波数）
+        const BGM_MELODY = [261.63, 329.63, 392.00, 523.25, 493.88, 392.00, 440.00, 329.63];
+
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
+            // ユーザー操作で startGame が呼ばれるのでここで resume を試みる
             if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+                audioCtx.resume().catch(()=>{ /* ignore */ });
             }
         }
 
@@ -247,7 +207,6 @@
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            
             const now = audioCtx.currentTime;
 
             switch(type) {
@@ -255,85 +214,111 @@
                     osc.type = 'triangle';
                     osc.frequency.setValueAtTime(200, now);
                     gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.12);
                     break;
                 case 'rotate':
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(400, now);
-                    gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1);
+                    osc.frequency.setValueAtTime(420, now);
+                    gain.gain.setValueAtTime(0.06, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+                    osc.start(now); osc.stop(now + 0.16);
                     break;
                 case 'drop':
                     osc.type = 'square';
-                    osc.frequency.setValueAtTime(100, now);
-                    gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1);
+                    osc.frequency.setValueAtTime(120, now);
+                    gain.gain.setValueAtTime(0.06, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.12);
                     break;
                 case 'clear':
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(523, now);
-                    osc.frequency.setValueAtTime(659, now + 0.1);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.linearRampToValueAtTime(0, now + 0.3);
-                    osc.start(now); osc.stop(now + 0.3);
+                    // ふたつの音を短く鳴らす
+                    (function() {
+                        const o1 = audioCtx.createOscillator();
+                        const g1 = audioCtx.createGain();
+                        o1.type = 'square'; o1.frequency.setValueAtTime(523.25, now);
+                        g1.gain.setValueAtTime(0.09, now);
+                        g1.gain.linearRampToValueAtTime(0.0001, now + 0.22);
+                        o1.connect(g1); g1.connect(audioCtx.destination);
+                        o1.start(now); o1.stop(now + 0.22);
+
+                        const o2 = audioCtx.createOscillator();
+                        const g2 = audioCtx.createGain();
+                        o2.type = 'square'; o2.frequency.setValueAtTime(659.25, now + 0.08);
+                        g2.gain.setValueAtTime(0.07, now + 0.08);
+                        g2.gain.linearRampToValueAtTime(0.0001, now + 0.3);
+                        o2.connect(g2); g2.connect(audioCtx.destination);
+                        o2.start(now + 0.08); o2.stop(now + 0.3);
+                    })();
                     break;
                 case 'gameover':
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(150, now);
-                    osc.frequency.linearRampToValueAtTime(50, now + 1);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.linearRampToValueAtTime(0, now + 1);
-                    osc.start(now); osc.stop(now + 1);
+                    osc.frequency.linearRampToValueAtTime(50, now + 1.0);
+                    gain.gain.setValueAtTime(0.11, now);
+                    gain.gain.linearRampToValueAtTime(0.0001, now + 1.0);
+                    osc.start(now); osc.stop(now + 1.0);
                     break;
             }
         }
 
-        // --- ゲームロジック ---
+        // BGM の再生（単純ループ）
+        function playBGM() {
+            if (!audioCtx) return;
+            stopBGM();
+            bgmIndex = 0;
+            // 350msごとに1音ずつ鳴らす
+            bgmInterval = setInterval(() => {
+                if (isPaused || isGameOver || !audioCtx) return;
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(BGM_MELODY[bgmIndex % BGM_MELODY.length], now);
+                gain.gain.setValueAtTime(0.03, now); // 小さめの音量
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now); osc.stop(now + 0.28);
+                bgmIndex++;
+            }, 350);
+        }
+        function stopBGM() {
+            if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+        }
 
-        // ディープコピーで配列を生成する（これが重要！）
+        /* ===== ゲームロジック（ほぼ既存） ===== */
         function createPiece(typeId) {
             if (!typeId) {
                 typeId = (Math.random() * 7 | 0) + 1;
             }
-            // JSONを使って完全なコピーを作成（参照渡しによる破壊を防ぐ）
             return JSON.parse(JSON.stringify(PIECES[typeId]));
         }
 
         function rotate(matrix, dir) {
-            // 転置
             for (let y = 0; y < matrix.length; ++y) {
                 for (let x = 0; x < y; ++x) {
                     [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
                 }
             }
-            // 列の反転
             if (dir > 0) matrix.forEach(row => row.reverse());
             else matrix.reverse();
         }
 
         function playerReset() {
-            // 次のピースを現在のピースに
             player.matrix = createPiece(nextPieceType);
-            // 新しい次のピースを決める
             nextPieceType = (Math.random() * 7 | 0) + 1;
             drawNext();
 
-            // 位置リセット
             player.pos.y = 0;
             player.pos.x = (COLS / 2 | 0) - (player.matrix[0].length / 2 | 0);
 
-            // ランダムな初期回転
             const rot = Math.random() * 4 | 0;
-            for(let i=0; i<rot; i++) {
-                rotate(player.matrix, 1);
-            }
+            for(let i=0;i<rot;i++) rotate(player.matrix,1);
 
             if (collide(board, player)) {
                 isGameOver = true;
                 isPaused = true;
+                stopBGM();
                 playSound('gameover');
                 document.getElementById('overlay-title').innerText = "GAME OVER";
                 document.getElementById('overlay-msg').innerText = "SCORE: " + player.score;
@@ -407,19 +392,14 @@
             }
         }
 
-        // 強化された回転ロジック（Wall Kick）
         function playerRotate(dir) {
             const pos = player.pos.x;
             let offset = 1;
             rotate(player.matrix, dir);
-            
-            // 衝突している場合、位置をずらして回転できるか試す
-            // I型(4x4)のために最大2マスまでチェック
             while (collide(board, player)) {
                 player.pos.x += offset;
                 offset = -(offset + (offset > 0 ? 1 : -1));
-                if (offset > 2) { 
-                    // 2マスずらしてもダメなら回転を戻す
+                if (offset > 2) {
                     rotate(player.matrix, -dir);
                     player.pos.x = pos;
                     return;
@@ -428,23 +408,24 @@
             playSound('rotate');
         }
 
-        // --- 描画関連 ---
-        
-        function drawMatrix(matrix, offset, ctx) {
+        /* ===== 描画 ===== */
+        function drawMatrix(matrix, offset, ctxLocal) {
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        ctx.fillStyle = COLORS[value];
-                        ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        
-                        // ブロックの立体感
-                        ctx.lineWidth = 0.05;
-                        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                        ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
-                        
-                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                        ctx.fillRect(x + offset.x + 0.1, y + offset.y + 0.8, 0.8, 0.1);
-                        ctx.fillRect(x + offset.x + 0.8, y + offset.y + 0.1, 0.1, 0.8);
+                        ctxLocal.fillStyle = COLORS[value];
+                        ctxLocal.fillRect(x + offset.x, y + offset.y, 1, 1);
+
+                        // マス目（背景と同じように格子を描画）
+                        ctxLocal.strokeStyle = 'rgba(0,0,0,0.25)';
+                        ctxLocal.lineWidth = 0.06;
+                        ctxLocal.strokeRect(x + offset.x, y + offset.y, 1, 1);
+
+                        // ハイライト / シャドウで立体感
+                        ctxLocal.fillStyle = 'rgba(255,255,255,0.08)';
+                        ctxLocal.fillRect(x + offset.x + 0.05, y + offset.y + 0.05, 0.4, 0.2);
+                        ctxLocal.fillStyle = 'rgba(0,0,0,0.12)';
+                        ctxLocal.fillRect(x + offset.x + 0.6, y + offset.y + 0.6, 0.3, 0.3);
                     }
                 });
             });
@@ -455,40 +436,40 @@
             while(!collide(board, {matrix: player.matrix, pos: {x: player.pos.x, y: ghostY + 1}})) {
                 ghostY++;
             }
-            
-            ctx.globalAlpha = 0.2;
+            ctx.globalAlpha = 0.25;
             drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx);
             ctx.globalAlpha = 1.0;
         }
 
         function draw() {
+            // 画面全体クリア（CSSピクセル基準）
+            ctx.setTransform(1,0,0,1,0,0);
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            drawMatrix(board, {x: 0, y: 0}, ctx);
+            // scale を blockSize 単位で設定してから描画
+            ctx.setTransform(blockSize,0,0,blockSize,0,0);
+
+            drawMatrix(board, {x:0, y:0}, ctx);
             drawGhost();
-            drawMatrix(player.matrix, player.pos, ctx);
+            if (player.matrix) drawMatrix(player.matrix, player.pos, ctx);
         }
 
         function drawNext() {
-            nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
+            nCtx.clearRect(0,0,nCanvas.width,nCanvas.height);
             const nextMatrix = PIECES[nextPieceType];
-            
-            // Nextキャンバスの中心に描画するための計算
             const scale = 15;
             const offsetX = (nCanvas.width / scale - nextMatrix[0].length) / 2;
             const offsetY = (nCanvas.height / scale - nextMatrix.length) / 2;
-            
             nCtx.save();
             nCtx.scale(scale, scale);
-            
             nextMatrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
                         nCtx.fillStyle = COLORS[value];
                         nCtx.fillRect(x + offsetX, y + offsetY, 1, 1);
-                        nCtx.lineWidth = 0.1;
-                        nCtx.strokeStyle = 'white';
+                        nCtx.lineWidth = 0.06;
+                        nCtx.strokeStyle = 'rgba(0,0,0,0.25)';
                         nCtx.strokeRect(x + offsetX, y + offsetY, 1, 1);
                     }
                 });
@@ -496,122 +477,70 @@
             nCtx.restore();
         }
 
-        // --- ループと入力 ---
-
+        /* ===== ループ & 入力処理 ===== */
         function update(time = 0) {
             if (isPaused) return;
-
             const deltaTime = time - lastTime;
             lastTime = time;
-
             dropCounter += deltaTime;
-            
-            // 下キー入力中は落下速度アップ
             const interval = inputState.down ? 50 : dropInterval;
-
             if (dropCounter > interval) {
                 playerDrop();
             }
-
-            // --- 長押し入力処理 (DAS) ---
             const now = Date.now();
-            
-            // 左
             if (inputState.left) {
-                if (now - inputTimers.left > 120) { // 120ms間隔
-                    playerMove(-1);
-                    inputTimers.left = now;
-                }
+                if (now - inputTimers.left > 120) { playerMove(-1); inputTimers.left = now; }
             }
-            // 右
             if (inputState.right) {
-                if (now - inputTimers.right > 120) {
-                    playerMove(1);
-                    inputTimers.right = now;
-                }
+                if (now - inputTimers.right > 120) { playerMove(1); inputTimers.right = now; }
             }
-            // 回転
             if (inputState.rotate) {
-                if (now - inputTimers.rotate > 250) {
-                    playerRotate(1);
-                    inputTimers.rotate = now;
-                }
+                if (now - inputTimers.rotate > 250) { playerRotate(1); inputTimers.rotate = now; }
             }
-
             draw();
             animationId = requestAnimationFrame(update);
         }
 
-        // --- コントロール設定 ---
         const inputState = { left: false, right: false, down: false, rotate: false };
         const inputTimers = { left: 0, right: 0, rotate: 0 };
 
         function setupControls() {
             const addBtnEvent = (id, key, action) => {
                 const btn = document.getElementById(id);
-                
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    if (isGameOver || isPaused) return;
-
-                    btn.classList.add('active');
-                    inputState[key] = true;
-                    inputTimers[key] = Date.now();
-                    
-                    // 初回入力は即時実行
-                    if (key !== 'down') action(); 
-                    
-                }, {passive: false});
-
-                const endHandler = (e) => {
-                    e.preventDefault();
-                    btn.classList.remove('active');
-                    inputState[key] = false;
-                };
-
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); if (isGameOver || isPaused) return; btn.classList.add('active'); inputState[key] = true; inputTimers[key] = Date.now(); if (key !== 'down') action(); }, {passive:false});
+                const endHandler = (e) => { e && e.preventDefault(); btn.classList.remove('active'); inputState[key] = false; };
                 btn.addEventListener('touchend', endHandler);
                 btn.addEventListener('mouseleave', endHandler);
+                btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); if (isGameOver || isPaused) return; btn.classList.add('active'); inputState[key]=true; inputTimers[key]=Date.now(); if (key!=='down') action(); });
+                btn.addEventListener('mouseup', endHandler);
             };
-
-            addBtnEvent('btn-left', 'left', () => playerMove(-1));
-            addBtnEvent('btn-right', 'right', () => playerMove(1));
-            addBtnEvent('btn-rotate', 'rotate', () => playerRotate(1));
-            
-            // 下ボタンは特殊（押している間だけフラグON）
+            addBtnEvent('btn-left','left', ()=>playerMove(-1));
+            addBtnEvent('btn-right','right', ()=>playerMove(1));
+            addBtnEvent('btn-rotate','rotate', ()=>playerRotate(1));
             const btnDrop = document.getElementById('btn-drop');
-            btnDrop.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (isGameOver || isPaused) return;
-                btnDrop.classList.add('active');
-                inputState.down = true;
-            }, {passive: false});
-            const dropEnd = (e) => {
-                e.preventDefault();
-                btnDrop.classList.remove('active');
-                inputState.down = false;
-            };
-            btnDrop.addEventListener('touchend', dropEnd);
-            btnDrop.addEventListener('mouseleave', dropEnd);
+            btnDrop.addEventListener('touchstart', (e)=>{ e.preventDefault(); if (isGameOver || isPaused) return; btnDrop.classList.add('active'); inputState.down=true; }, {passive:false});
+            const dropEnd = (e)=>{ e && e.preventDefault(); btnDrop.classList.remove('active'); inputState.down=false; };
+            btnDrop.addEventListener('touchend', dropEnd); btnDrop.addEventListener('mouseleave', dropEnd);
+            // クリックでも動くようにする（開発用）
+            canvas.addEventListener('mousedown', ()=>{ if (isPaused) startGame(); });
         }
 
-        // --- 初期化 ---
+        /* ===== 初期化 / 開始 / リサイズ ===== */
         function startGame() {
+            // ユーザー操作で audio を初期化（iOS 対応）
             initAudio();
+            playBGM();
+
             document.getElementById('overlay').style.display = 'none';
-            
-            // リセット
             board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
             player.score = 0;
             document.getElementById('score').innerText = 0;
             document.getElementById('lines').innerText = 0;
             dropInterval = 1000;
-            
             isGameOver = false;
             isPaused = false;
-            
             nextPieceType = (Math.random() * 7 | 0) + 1;
             playerReset();
-            
             lastTime = performance.now();
             update();
         }
@@ -621,34 +550,20 @@
             const aspect = COLS / ROWS;
             let h = container.clientHeight;
             let w = h * aspect;
-            
-            if (w > container.clientWidth) {
-                w = container.clientWidth;
-                h = w / aspect;
-            }
-
-            // 余白を少し
-            w *= 0.96;
-            h *= 0.96;
-
-            canvas.width = w;
-            canvas.height = h;
-            
-            blockSize = w / COLS;
-            
-            ctx.scale(blockSize, blockSize);
-            
+            if (w > container.clientWidth) { w = container.clientWidth; h = w / aspect; }
+            w *= 0.96; h *= 0.96;
+            canvas.width = Math.floor(w);
+            canvas.height = Math.floor(h);
+            blockSize = canvas.width / COLS;
+            // reset transform in draw() before drawing, so no cumulative scale here
             if(!isPaused && !isGameOver) draw();
         }
 
         window.addEventListener('resize', resize);
         document.getElementById('btn-action').addEventListener('click', startGame);
-        
+
         setupControls();
         resize(); // 初期サイズ計算
-
     </script>
 </body>
 </html>
-
-
