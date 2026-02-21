@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tetris Perfect</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tetris Advanced UI</title>
     <style>
         body {
             margin: 0;
@@ -15,43 +15,28 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            touch-action: none;
+            touch-action: none; /* ズームやスクロールを禁止 */
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
-        /* ヘッダー */
+        /* ヘッダー情報（コンパクト化） */
         header {
             background-color: #1e1e1e;
-            padding: 0 20px;
-            height: 60px;
+            padding: 5px 15px;
+            height: 55px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid #333;
             box-sizing: border-box;
         }
-        .stat-group { display: flex; gap: 20px; }
+        .stat-group { display: flex; gap: 15px; width: 100%; justify-content: space-around; }
         .stat-item { text-align: center; }
-        .stat-label { font-size: 0.6rem; color: #888; letter-spacing: 1px; }
-        .stat-val { font-size: 1.2rem; font-weight: bold; font-family: monospace; color: #eee; }
-
-        /* ポーズボタン */
-        #btn-pause {
-            background: transparent;
-            border: 1px solid #555;
-            color: #fff;
-            font-size: 1.2rem;
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #222;
-        }
-        #btn-pause:active { background: #444; }
+        .stat-label { font-size: 0.55rem; color: #888; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .stat-val { font-size: 1.1rem; font-weight: bold; font-family: monospace; color: #eee; }
+        .highlight { color: #FFD700; } /* ハイスコア用カラー */
 
         /* ゲームエリア */
         #game-area {
@@ -71,19 +56,18 @@
         /* NEXT表示 */
         #next-area {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 10px;
+            right: 10px;
             background: rgba(40,40,40,0.9);
             border: 1px solid #555;
-            padding: 10px;
+            padding: 8px;
             border-radius: 8px;
             text-align: center;
             pointer-events: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         #next-canvas { background: transparent; }
 
-        /* オーバーレイ（スタート・ゲームオーバー・ポーズ） */
+        /* オーバーレイ */
         #overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -95,53 +79,108 @@
             z-index: 100;
             backdrop-filter: blur(5px);
         }
-        #overlay h1 { font-size: 3rem; color: #FF5252; margin: 0 0 20px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.5); }
-        #overlay p { color: #ccc; margin-bottom: 30px; font-size: 1.2rem; }
+        #overlay h1 { font-size: 2.5rem; color: #FF5252; margin: 0 0 10px 0; }
+        #overlay p { color: #ccc; margin-bottom: 25px; font-size: 1.2rem; }
         #btn-action {
-            padding: 15px 50px;
-            font-size: 1.5rem;
+            padding: 12px 40px;
+            font-size: 1.2rem;
             background: linear-gradient(135deg, #2196F3, #2979FF);
             color: white;
             border: none;
             border-radius: 50px;
             font-weight: bold;
-            box-shadow: 0 6px 15px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 5px 10px rgba(33, 150, 243, 0.4);
             cursor: pointer;
-            transition: transform 0.1s;
         }
         #btn-action:active { transform: scale(0.95); }
 
-        /* コントローラー */
+        /* --- コントローラーレイアウト（盤面拡大のため低く設定） --- */
         #controls {
-            height: 160px;
+            height: 140px; /* 高さを大幅に削減 */
             background-color: #1e1e1e;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 0 30px calc(10px + env(safe-area-inset-bottom));
+            align-items: flex-end;
+            padding: 10px 20px calc(15px + env(safe-area-inset-bottom));
             border-top: 1px solid #333;
             box-sizing: border-box;
         }
-        .c-group { display: flex; gap: 20px; }
-        .btn {
-            width: 75px; height: 75px;
-            border-radius: 50%;
-            background: #333;
+
+        /* 左側（ステートボタン＋横並び十字キー） */
+        .left-side {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* 状態切り替えボタン */
+        #btn-state {
+            width: 110px;
+            padding: 8px 0;
+            border: none;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+            text-align: center;
+            transition: background 0.2s;
+        }
+        #btn-state:active { transform: translateY(4px); box-shadow: none; }
+        
+        .state-start  { background: #4CAF50; box-shadow: 0 4px 0 #2E7D32 !important; } /* 緑 */
+        .state-pause  { background: #2196F3; box-shadow: 0 4px 0 #1565C0 !important; } /* 青 */
+        .state-resume { background: #FF9800; box-shadow: 0 4px 0 #E65100 !important; } /* 橙 */
+        .state-retry  { background: #F44336; box-shadow: 0 4px 0 #C62828 !important; } /* 赤 */
+
+        .move-btns {
+            display: flex;
+            gap: 8px; /* 隙間 */
+        }
+
+        .d-btn {
+            width: 50px;
+            height: 50px;
+            background: #444;
+            border-radius: 8px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 2rem;
-            box-shadow: 0 6px 0 #111;
+            font-size: 1.5rem;
             color: #ddd;
-            transition: all 0.05s;
+            box-shadow: 0 4px 0 #111;
         }
-        .btn:active, .btn.active { transform: translateY(6px); box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); background: #444; }
+        .d-btn:active, .d-btn.active { transform: translateY(4px); box-shadow: none; background: #666; }
+
+        /* 右側（回転＋ハードドロップ） */
+        .right-side {
+            position: relative;
+            width: 110px;
+            height: 110px;
+        }
+
+        .a-btn {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: #fff;
+            box-shadow: 0 5px 0 rgba(0,0,0,0.8);
+            position: absolute;
+        }
+        .a-btn:active, .a-btn.active { transform: translateY(5px); box-shadow: none; }
         
-        .btn-blue { background: #1976D2; box-shadow: 0 6px 0 #0D47A1; color: #fff; }
-        .btn-blue:active, .btn-blue.active { background: #2196F3; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
+        /* 配置 */
+        #btn-up { top: 0; left: 50%; transform: translateX(-50%); background: #757575; box-shadow: 0 5px 0 #424242; } /* ハードドロップ */
+        #btn-up:active, #btn-up.active { transform: translate(-50%, 5px); }
+
+        #btn-rot-left { bottom: 0; left: 0; background: #1976D2; box-shadow: 0 5px 0 #0D47A1; } /* 左回転 */
+        #btn-rot-left:active, #btn-rot-left.active { background: #2196F3; }
         
-        .btn-red { background: #D32F2F; box-shadow: 0 6px 0 #B71C1C; color: #fff; }
-        .btn-red:active, .btn-red.active { background: #F44336; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
+        #btn-rot-right { bottom: 0; right: 0; background: #D32F2F; box-shadow: 0 5px 0 #B71C1C; } /* 右回転 */
+        #btn-rot-right:active, #btn-rot-right.active { background: #F44336; }
 
     </style>
 </head>
@@ -149,10 +188,11 @@
 
     <header>
         <div class="stat-group">
+            <div class="stat-item"><div class="stat-label highlight">HI-SCORE</div><div id="hi-score" class="stat-val highlight">0</div></div>
             <div class="stat-item"><div class="stat-label">SCORE</div><div id="score" class="stat-val">0</div></div>
+            <div class="stat-item"><div class="stat-label">LEVEL</div><div id="level" class="stat-val">1</div></div>
             <div class="stat-item"><div class="stat-label">LINES</div><div id="lines" class="stat-val">0</div></div>
         </div>
-        <button id="btn-pause">⏸</button>
     </header>
 
     <div id="game-area">
@@ -170,18 +210,35 @@
     </div>
 
     <div id="controls">
-        <div class="c-group">
-            <div class="btn" id="btn-left">←</div>
-            <div class="btn" id="btn-right">→</div>
+        <!-- 左側：ステートボタン ＋ 横並び移動キー -->
+        <div class="left-side">
+            <div id="btn-state" class="state-start">▶ START</div>
+            <div class="move-btns">
+                <div class="d-btn" id="btn-left">⇦</div>
+                <div class="d-btn" id="btn-drop">⇩</div>
+                <div class="d-btn" id="btn-right">⇨</div>
+            </div>
         </div>
-        <div class="c-group">
-            <div class="btn btn-blue" id="btn-drop">⇓</div>
-            <div class="btn btn-red" id="btn-rotate">↻</div>
+        
+        <!-- 右側：ハードドロップ ＋ 回転ボタン -->
+        <div class="right-side">
+            <div class="a-btn" id="btn-up">⇧</div>
+            <div class="a-btn" id="btn-rot-left">↺</div>
+            <div class="a-btn" id="btn-rot-right">↻</div>
         </div>
     </div>
 
     <script>
-        // --- データ定義 ---
+        // 画面拡大バグの完全防止
+        document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', e => {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) e.preventDefault();
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // データ定義
         const PIECES = [
             null,
             [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], // I
@@ -192,7 +249,6 @@
             [[0, 6, 0], [6, 6, 6], [0, 0, 0]],                         // T
             [[7, 7, 0], [0, 7, 7], [0, 0, 0]]                          // Z
         ];
-
         const COLORS = [null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000'];
 
         const canvas = document.getElementById('tetris');
@@ -205,18 +261,21 @@
         let player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
         let nextPieceType = 1;
         
+        // 状態・レベル管理
         let dropCounter = 0, dropInterval = 1000, lastTime = 0;
-        let isGameOver = false, isPaused = true;
+        let gameState = 'start'; // 'start', 'playing', 'paused', 'gameover'
         let animationId = null;
-        let overlayActionType = 'start'; // 'start', 'retry', 'resume'
-
-        // --- オーディオとBGM設定 ---
-        let audioCtx = null;
-        let nextNoteTime = 0;
-        let noteIndex = 0;
+        let currentLevel = 1;
+        let totalLines = 0;
+        let highScore = localStorage.getItem('tetrisHighScore') || 0;
         
-        const melody = [659, 493, 523, 587, 523, 493, 440, 440, 523, 659, 587, 523, 493, 523, 587, 659, 523, 440, 440];
-        const durations = [0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4];
+        document.getElementById('hi-score').innerText = highScore;
+
+        // オーディオ設定
+        let audioCtx = null;
+        let nextNoteTime = 0, noteIndex = 0;
+        const melody = [659, 493, 523, 587, 523, 493, 440, 440, 523, 659, 587, 523, 493, 493, 523, 587, 659, 523, 440, 440, 587, 698, 880, 783, 698, 659, 659, 523, 659, 587, 523, 493, 493, 523, 587, 659, 523, 440, 440];
+        const durations = [0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.4];
         
         function initAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -231,77 +290,52 @@
             const now = audioCtx.currentTime;
 
             switch(type) {
-                case 'move':
-                    osc.type = 'triangle'; osc.frequency.setValueAtTime(200, now);
-                    gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1); break;
-                case 'rotate':
-                    osc.type = 'sine'; osc.frequency.setValueAtTime(400, now);
-                    gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1); break;
-                case 'drop':
-                    osc.type = 'square'; osc.frequency.setValueAtTime(100, now);
-                    gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now); osc.stop(now + 0.1); break;
-                case 'clear':
-                    osc.type = 'square'; osc.frequency.setValueAtTime(523, now); osc.frequency.setValueAtTime(659, now + 0.1);
-                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
-                    osc.start(now); osc.stop(now + 0.3); break;
-                case 'gameover':
-                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(50, now + 1);
-                    // ゲームオーバーの音量を0.1から0.03に下げました
-                    gain.gain.setValueAtTime(0.03, now); gain.gain.linearRampToValueAtTime(0, now + 1);
-                    osc.start(now); osc.stop(now + 1); break;
+                case 'move': osc.type = 'triangle'; osc.frequency.setValueAtTime(200, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1); break;
+                case 'rotate': osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1); break;
+                case 'drop': osc.type = 'square'; osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1); break;
+                case 'harddrop': osc.type = 'square'; osc.frequency.setValueAtTime(80, now); gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15); break;
+                case 'clear': osc.type = 'square'; osc.frequency.setValueAtTime(523, now); osc.frequency.setValueAtTime(659, now + 0.1); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); osc.start(now); osc.stop(now + 0.3); break;
+                case 'gameover': osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(50, now + 1); gain.gain.setValueAtTime(0.03, now); gain.gain.linearRampToValueAtTime(0, now + 1); osc.start(now); osc.stop(now + 1); break;
             }
         }
 
         function scheduleBGM() {
-            if (!audioCtx || isGameOver || isPaused) return;
+            if (!audioCtx || gameState !== 'playing') return;
             while (nextNoteTime < audioCtx.currentTime + 0.1) {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
                 osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.type = 'square';
-                osc.frequency.value = melody[noteIndex % melody.length];
-                gain.gain.value = 0.03; // BGM音量
-                gain.gain.setValueAtTime(0.03, nextNoteTime);
-                gain.gain.linearRampToValueAtTime(0, nextNoteTime + durations[noteIndex % melody.length] - 0.05);
-                osc.start(nextNoteTime);
-                osc.stop(nextNoteTime + durations[noteIndex % melody.length]);
-                nextNoteTime += durations[noteIndex % melody.length];
-                noteIndex++;
+                osc.type = 'square'; osc.frequency.value = melody[noteIndex % melody.length];
+                gain.gain.value = 0.03; gain.gain.setValueAtTime(0.03, nextNoteTime); gain.gain.linearRampToValueAtTime(0, nextNoteTime + durations[noteIndex % melody.length] - 0.05);
+                osc.start(nextNoteTime); osc.stop(nextNoteTime + durations[noteIndex % melody.length]);
+                nextNoteTime += durations[noteIndex % melody.length]; noteIndex++;
             }
         }
 
-        // --- ゲームロジック ---
-        function createPiece(typeId) {
-            return JSON.parse(JSON.stringify(PIECES[typeId]));
-        }
-
+        // ゲームロジック
+        function createPiece(typeId) { return JSON.parse(JSON.stringify(PIECES[typeId])); }
         function rotate(matrix, dir) {
-            for (let y = 0; y < matrix.length; ++y) {
-                for (let x = 0; x < y; ++x) {
-                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-                }
+            for (let y = 0; y < matrix.length; ++y) for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+            if (dir > 0) matrix.forEach(row => row.reverse()); else matrix.reverse();
+        }
+
+        function checkHighScore() {
+            if (player.score > highScore) {
+                highScore = player.score;
+                document.getElementById('hi-score').innerText = highScore;
+                localStorage.setItem('tetrisHighScore', highScore);
             }
-            if (dir > 0) matrix.forEach(row => row.reverse());
-            else matrix.reverse();
         }
 
         function playerReset() {
             player.matrix = createPiece(nextPieceType);
             nextPieceType = (Math.random() * 7 | 0) + 1;
             drawNext();
-            player.pos.y = 0;
-            player.pos.x = (COLS / 2 | 0) - (player.matrix[0].length / 2 | 0);
-
-            const rot = Math.random() * 4 | 0;
-            for(let i=0; i<rot; i++) rotate(player.matrix, 1);
+            player.pos.y = 0; player.pos.x = (COLS / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            for(let i=0; i<(Math.random() * 4 | 0); i++) rotate(player.matrix, 1);
 
             if (collide(board, player)) {
-                isGameOver = true; isPaused = true;
-                playSound('gameover');
-                openOverlay("GAME OVER", "SCORE: " + player.score, "RETRY", "retry");
+                checkHighScore();
+                changeState('gameover');
             }
         }
 
@@ -317,27 +351,31 @@
 
         function merge(arena, player) {
             player.matrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value;
-                });
+                row.forEach((value, x) => { if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value; });
             });
         }
 
         function arenaSweep() {
             let rowCount = 0;
             outer: for (let y = board.length - 1; y > 0; --y) {
-                for (let x = 0; x < board[y].length; ++x) {
-                    if (board[y][x] === 0) continue outer;
-                }
-                const row = board.splice(y, 1)[0].fill(0);
-                board.unshift(row);
-                ++y; rowCount++;
+                for (let x = 0; x < board[y].length; ++x) if (board[y][x] === 0) continue outer;
+                const row = board.splice(y, 1)[0].fill(0); board.unshift(row); ++y; rowCount++;
             }
             if (rowCount > 0) {
-                player.score += rowCount * 100 * rowCount;
-                dropInterval = Math.max(100, 1000 - (player.score / 500) * 50); 
+                // スコア計算：ライン数の二乗 × 100 × レベル
+                player.score += rowCount * rowCount * 100 * currentLevel;
+                totalLines += rowCount;
+                
+                // 10ラインごとにレベルアップ
+                currentLevel = Math.floor(totalLines / 10) + 1;
+                // レベルに応じて落下速度アップ（最速100ms）
+                dropInterval = Math.max(100, 1000 - ((currentLevel - 1) * 80)); 
+                
                 document.getElementById('score').innerText = player.score;
-                document.getElementById('lines').innerText = (parseInt(document.getElementById('lines').innerText) + rowCount);
+                document.getElementById('lines').innerText = totalLines;
+                document.getElementById('level').innerText = currentLevel;
+                
+                checkHighScore();
                 playSound('clear');
             }
         }
@@ -351,83 +389,66 @@
             dropCounter = 0;
         }
 
+        function playerHardDrop() {
+            while (!collide(board, player)) player.pos.y++;
+            player.pos.y--; merge(board, player); playSound('harddrop');
+            arenaSweep(); playerReset(); dropCounter = 0;
+        }
+
         function playerMove(dir) {
             player.pos.x += dir;
-            if (collide(board, player)) player.pos.x -= dir;
-            else playSound('move');
+            if (collide(board, player)) player.pos.x -= dir; else playSound('move');
         }
 
         function playerRotate(dir) {
-            const pos = player.pos.x;
-            let offset = 1;
-            rotate(player.matrix, dir);
+            const pos = player.pos.x; let offset = 1; rotate(player.matrix, dir);
             while (collide(board, player)) {
-                player.pos.x += offset;
-                offset = -(offset + (offset > 0 ? 1 : -1));
-                if (offset > 2) { 
-                    rotate(player.matrix, -dir);
-                    player.pos.x = pos; return;
-                }
+                player.pos.x += offset; offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > 2) { rotate(player.matrix, -dir); player.pos.x = pos; return; }
             }
             playSound('rotate');
         }
 
-        // --- 描画関連 ---
+        // 描画関連
         function drawMatrix(matrix, offset, ctx) {
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        ctx.fillStyle = COLORS[value];
-                        ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        ctx.lineWidth = 0.05; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                        ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
-                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                        ctx.fillRect(x + offset.x + 0.1, y + offset.y + 0.8, 0.8, 0.1);
-                        ctx.fillRect(x + offset.x + 0.8, y + offset.y + 0.1, 0.1, 0.8);
+                        ctx.fillStyle = COLORS[value]; ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
+                        ctx.lineWidth = 0.05; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x + offset.x + 0.1, y + offset.y + 0.8, 0.8, 0.1); ctx.fillRect(x + offset.x + 0.8, y + offset.y + 0.1, 0.1, 0.8);
                     }
                 });
             });
         }
-
         function drawGhost() {
             let ghostY = player.pos.y;
             while(!collide(board, {matrix: player.matrix, pos: {x: player.pos.x, y: ghostY + 1}})) ghostY++;
-            ctx.globalAlpha = 0.2;
-            drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx);
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 0.4; drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); ctx.globalAlpha = 1.0;
         }
-
         function draw() {
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             drawMatrix(board, {x: 0, y: 0}, ctx); drawGhost(); drawMatrix(player.matrix, player.pos, ctx);
         }
-
         function drawNext() {
             nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
-            const nextMatrix = PIECES[nextPieceType];
-            const scale = 15;
-            const offsetX = (nCanvas.width / scale - nextMatrix[0].length) / 2;
-            const offsetY = (nCanvas.height / scale - nextMatrix.length) / 2;
+            const nextMatrix = PIECES[nextPieceType]; const scale = 15;
+            const offsetX = (nCanvas.width / scale - nextMatrix[0].length) / 2; const offsetY = (nCanvas.height / scale - nextMatrix.length) / 2;
             nCtx.save(); nCtx.scale(scale, scale);
-            nextMatrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        nCtx.fillStyle = COLORS[value]; nCtx.fillRect(x + offsetX, y + offsetY, 1, 1);
-                        nCtx.lineWidth = 0.1; nCtx.strokeStyle = 'white'; nCtx.strokeRect(x + offsetX, y + offsetY, 1, 1);
-                    }
-                });
-            });
+            nextMatrix.forEach((row, y) => { row.forEach((value, x) => {
+                if (value !== 0) {
+                    nCtx.fillStyle = COLORS[value]; nCtx.fillRect(x + offsetX, y + offsetY, 1, 1);
+                    nCtx.lineWidth = 0.1; nCtx.strokeStyle = 'white'; nCtx.strokeRect(x + offsetX, y + offsetY, 1, 1);
+                }
+            });});
             nCtx.restore();
         }
 
-        // --- ループと入力 ---
+        // ループ
         function update(time = 0) {
-            if (isPaused) return;
-
-            const deltaTime = time - lastTime;
-            lastTime = time;
-
-            scheduleBGM(); // BGM再生スケジューリング
+            if (gameState !== 'playing') return;
+            const deltaTime = time - lastTime; lastTime = time;
+            scheduleBGM();
 
             dropCounter += deltaTime;
             const interval = inputState.down ? 50 : dropInterval;
@@ -436,109 +457,103 @@
             const now = Date.now();
             if (inputState.left && now - inputTimers.left > 120) { playerMove(-1); inputTimers.left = now; }
             if (inputState.right && now - inputTimers.right > 120) { playerMove(1); inputTimers.right = now; }
-            if (inputState.rotate && now - inputTimers.rotate > 250) { playerRotate(1); inputTimers.rotate = now; }
 
             draw();
             animationId = requestAnimationFrame(update);
         }
 
-        const inputState = { left: false, right: false, down: false, rotate: false };
-        const inputTimers = { left: 0, right: 0, rotate: 0 };
+        const inputState = { left: false, right: false, down: false };
+        const inputTimers = { left: 0, right: 0 };
 
         function setupControls() {
-            const addBtnEvent = (id, key, action) => {
+            const bindBtn = (id, key, action, isContinuous) => {
                 const btn = document.getElementById(id);
                 btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault(); if (isGameOver || isPaused) return;
-                    btn.classList.add('active'); inputState[key] = true; inputTimers[key] = Date.now();
-                    if (key !== 'down') action(); 
+                    e.preventDefault(); if (gameState !== 'playing') return;
+                    btn.classList.add('active');
+                    if (isContinuous) { inputState[key] = true; inputTimers[key] = Date.now(); }
+                    if (action) action(); 
                 }, {passive: false});
-                const endHandler = (e) => { e.preventDefault(); btn.classList.remove('active'); inputState[key] = false; };
+                const endHandler = (e) => {
+                    e.preventDefault(); btn.classList.remove('active');
+                    if (isContinuous) inputState[key] = false;
+                };
                 btn.addEventListener('touchend', endHandler); btn.addEventListener('mouseleave', endHandler);
             };
 
-            addBtnEvent('btn-left', 'left', () => playerMove(-1));
-            addBtnEvent('btn-right', 'right', () => playerMove(1));
-            addBtnEvent('btn-rotate', 'rotate', () => playerRotate(1));
-            
-            const btnDrop = document.getElementById('btn-drop');
-            btnDrop.addEventListener('touchstart', (e) => {
-                e.preventDefault(); if (isGameOver || isPaused) return;
-                btnDrop.classList.add('active'); inputState.down = true;
-            }, {passive: false});
-            const dropEnd = (e) => { e.preventDefault(); btnDrop.classList.remove('active'); inputState.down = false; };
-            btnDrop.addEventListener('touchend', dropEnd); btnDrop.addEventListener('mouseleave', dropEnd);
+            bindBtn('btn-left', 'left', () => playerMove(-1), true);
+            bindBtn('btn-right', 'right', () => playerMove(1), true);
+            bindBtn('btn-drop', 'down', null, true);
+            bindBtn('btn-up', null, () => playerHardDrop(), false);
+            bindBtn('btn-rot-left', null, () => playerRotate(-1), false);
+            bindBtn('btn-rot-right', null, () => playerRotate(1), false);
         }
 
-        // --- オーバーレイ・進行管理 ---
-        function openOverlay(title, msg, btnText, actionType) {
-            document.getElementById('overlay-title').innerText = title;
-            document.getElementById('overlay-msg').innerText = msg;
-            document.getElementById('btn-action').innerText = btnText;
-            document.getElementById('overlay').style.display = 'flex';
-            
-            // ゲームオーバー時は赤色、ポーズ時は青色にするなどの演出
-            document.getElementById('overlay-title').style.color = (actionType === 'retry') ? '#FF5252' : '#2196F3';
-            
-            overlayActionType = actionType;
+        // 状態管理
+        function changeState(newState) {
+            gameState = newState;
+            const stateBtn = document.getElementById('btn-state');
+            const overlay = document.getElementById('overlay');
+            const oTitle = document.getElementById('overlay-title');
+            const oMsg = document.getElementById('overlay-msg');
+            const oBtn = document.getElementById('btn-action');
+
+            if (newState === 'start') {
+                stateBtn.className = 'state-start'; stateBtn.innerText = '▶ START';
+                overlay.style.display = 'flex'; oTitle.innerText = 'TETRIS'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'TAP TO START'; oBtn.innerText = 'PLAY';
+            } else if (newState === 'playing') {
+                stateBtn.className = 'state-pause'; stateBtn.innerText = '⏸ PAUSE';
+                overlay.style.display = 'none';
+                lastTime = performance.now();
+                update();
+            } else if (newState === 'paused') {
+                stateBtn.className = 'state-resume'; stateBtn.innerText = '▶ RESUME';
+                overlay.style.display = 'flex'; oTitle.innerText = 'PAUSE'; oTitle.style.color = '#2196F3'; oMsg.innerText = 'Game is Paused'; oBtn.innerText = 'RESUME';
+            } else if (newState === 'gameover') {
+                stateBtn.className = 'state-retry'; stateBtn.innerText = '↺ RETRY';
+                playSound('gameover');
+                overlay.style.display = 'flex'; oTitle.innerText = 'GAME OVER'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'SCORE: ' + player.score; oBtn.innerText = 'RETRY';
+            }
         }
 
-        function startGame() {
+        function handleStateAction() {
             initAudio();
-            document.getElementById('overlay').style.display = 'none';
-            board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-            player.score = 0;
-            document.getElementById('score').innerText = 0;
-            document.getElementById('lines').innerText = 0;
-            dropInterval = 1000;
-            isGameOver = false; isPaused = false;
-            
-            // BGMの時間をリセット
-            if (audioCtx) { nextNoteTime = audioCtx.currentTime; noteIndex = 0; }
-            
-            nextPieceType = (Math.random() * 7 | 0) + 1;
-            playerReset();
-            lastTime = performance.now(); update();
+            if (gameState === 'start' || gameState === 'gameover') {
+                // ゲーム初期化
+                board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+                player.score = 0; currentLevel = 1; totalLines = 0; dropInterval = 1000;
+                document.getElementById('score').innerText = 0; document.getElementById('lines').innerText = 0; document.getElementById('level').innerText = 1;
+                if (audioCtx) { nextNoteTime = audioCtx.currentTime; noteIndex = 0; }
+                nextPieceType = (Math.random() * 7 | 0) + 1;
+                playerReset();
+                changeState('playing');
+            } else if (gameState === 'playing') {
+                changeState('paused');
+            } else if (gameState === 'paused') {
+                if (audioCtx) nextNoteTime = audioCtx.currentTime; 
+                changeState('playing');
+            }
         }
 
-        function resumeGame() {
-            initAudio();
-            document.getElementById('overlay').style.display = 'none';
-            isPaused = false;
-            
-            // BGMが過去の時間にスケジュールされないよう調整
-            if (audioCtx) nextNoteTime = audioCtx.currentTime; 
-            
-            lastTime = performance.now();
-            update(lastTime);
-        }
-
-        function pauseGame() {
-            if (isGameOver || isPaused) return;
-            isPaused = true;
-            openOverlay("PAUSE", "Game is Paused", "RESUME", "resume");
-        }
-
-        document.getElementById('btn-action').addEventListener('click', () => {
-            if (overlayActionType === 'start' || overlayActionType === 'retry') startGame();
-            else if (overlayActionType === 'resume') resumeGame();
-        });
-
-        document.getElementById('btn-pause').addEventListener('click', pauseGame);
+        document.getElementById('btn-state').addEventListener('touchstart', (e) => { e.preventDefault(); handleStateAction(); }, {passive: false});
+        document.getElementById('btn-action').addEventListener('click', handleStateAction);
 
         function resize() {
             const container = document.getElementById('game-area');
             const aspect = COLS / ROWS;
             let h = container.clientHeight; let w = h * aspect;
             if (w > container.clientWidth) { w = container.clientWidth; h = w / aspect; }
-            w *= 0.96; h *= 0.96; // 余白
+            w *= 0.96; h *= 0.96; 
             canvas.width = w; canvas.height = h;
             ctx.scale(w / COLS, w / COLS);
-            if(!isPaused && !isGameOver) draw();
+            if(gameState === 'playing') draw();
+            else if (gameState === 'start') { draw(); drawNext(); } // 初期描画
         }
 
         window.addEventListener('resize', resize);
-        setupControls(); resize();
+        setupControls(); 
+        changeState('start');
+        resize();
 
     </script>
 </body>
