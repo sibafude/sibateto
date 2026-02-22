@@ -443,7 +443,16 @@
                 totalLines += rowCount;
                 
                 currentLevel = Math.floor(totalLines / 10) + 1;
-                dropInterval = Math.max(60, 1000 * Math.pow(0.80, currentLevel - 1)); 
+                
+                // 落下速度の計算：レベルが上がると急激に速くなり、レベル10で少しゆっくりに戻って再加速する
+                if (currentLevel < 10) {
+                    // レベル1〜9：0.70乗で急激に加速 (1: 1000ms, 2: 700ms, 3: 490ms ...)
+                    dropInterval = Math.max(60, 1000 * Math.pow(0.70, currentLevel - 1));
+                } else {
+                    // レベル10以降：基準を800ms(最初より少し速い)にリセットし、再び加速
+                    let resetLevel = currentLevel - 9;
+                    dropInterval = Math.max(60, 800 * Math.pow(0.70, resetLevel - 1));
+                }
                 
                 document.getElementById('score').innerText = player.score;
                 document.getElementById('lines').innerText = totalLines;
@@ -499,8 +508,8 @@
 
         // --- 描画関連 ---
         function drawGrid() {
-            ctx.lineWidth = 0.02; // 細い線
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // 薄い白
+            ctx.lineWidth = 0.03; // 線を少ししっかりさせる
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; // 透明度を上げて濃く表示
             // 縦線
             for (let x = 0; x <= COLS; x++) {
                 ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROWS); ctx.stroke();
@@ -525,7 +534,9 @@
         function drawGhost() {
             let ghostY = player.pos.y;
             while(!collide(board, {matrix: player.matrix, pos: {x: player.pos.x, y: ghostY + 1}})) ghostY++;
-            ctx.globalAlpha = 0.4; drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 0.2; // 0.4から0.2に変更してより薄くする
+            drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); 
+            ctx.globalAlpha = 1.0;
         }
         function draw() {
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); // 背景を黒に塗りつぶす
