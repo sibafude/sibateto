@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Tetris Perfect UI</title>
     <style>
+        /* ズーム・スクロールを完全に禁止する */
+        * {
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -15,10 +23,6 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
         }
 
         /* ヘッダー情報 */
@@ -132,7 +136,7 @@
             position: relative; 
         }
 
-        /* 左側（移動キー：十字配置） */
+        /* 左側（移動キー：↓を上、←→を下にするT字配置） */
         .left-side {
             position: relative;
             width: 120px;
@@ -150,14 +154,15 @@
             color: #ddd;
             box-shadow: 0 4px 0 #111;
             position: absolute;
+            cursor: pointer;
         }
         .d-btn:active, .d-btn.active { transform: translateY(4px); box-shadow: none; background: #666; }
         
-        #btn-left { left: 0; bottom: 35px; }   
-        #btn-right { right: 0; bottom: 35px; } 
-        #btn-drop { left: 50%; bottom: 0; transform: translateX(-50%); } 
+        #btn-drop { top: 0px; left: 50%; transform: translateX(-50%); } /* 下降ボタンを上に配置 */
+        #btn-left { bottom: 0; left: 0; }   /* 左移動ボタンを下に配置 */
+        #btn-right { bottom: 0; right: 0; } /* 右移動ボタンを下に配置 */
 
-        /* 中央（状態切り替えボタン：さらに小さく） */
+        /* 中央（状態切り替えボタン） */
         .center-side {
             position: absolute;
             bottom: calc(15px + env(safe-area-inset-bottom));
@@ -179,7 +184,7 @@
             transition: transform 0.1s, background 0.2s;
             cursor: pointer;
         }
-        #btn-state:active { transform: translateY(4px); box-shadow: none; }
+        #btn-state:active, #btn-state.active { transform: translateY(4px); box-shadow: none; }
         
         .state-icon { font-size: 1.1rem; line-height: 1; margin-bottom: 2px; }
         .state-text { font-size: 0.5rem; font-weight: bold; letter-spacing: 0px; }
@@ -205,6 +210,7 @@
             color: #fff;
             box-shadow: 0 4px 0 rgba(0,0,0,0.8);
             position: absolute;
+            cursor: pointer;
         }
         .a-btn:active, .a-btn.active { transform: translateY(4px); box-shadow: none; }
         
@@ -240,14 +246,14 @@
     </div>
 
     <div id="controls">
-        <!-- 左側：移動ボタン（十字キー風） -->
+        <!-- 左側：移動ボタン（T字キー配置） -->
         <div class="left-side">
+            <div class="d-btn" id="btn-drop">⇩</div>
             <div class="d-btn" id="btn-left">⇦</div>
             <div class="d-btn" id="btn-right">⇨</div>
-            <div class="d-btn" id="btn-drop">⇩</div>
         </div>
 
-        <!-- 中央：状態ボタン（極小化） -->
+        <!-- 中央：状態ボタン -->
         <div class="center-side">
             <div id="btn-state" class="state-start">
                 <div id="state-icon" class="state-icon">▶</div>
@@ -264,16 +270,18 @@
     </div>
 
     <script>
-        // 画面拡大バグの防止
-        document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', e => {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) e.preventDefault();
-            lastTouchEnd = now;
+        // ---------------------------------------------------
+        // ズーム防止処理（さらに強力に）
+        // ---------------------------------------------------
+        document.addEventListener('dblclick', function(e) { e.preventDefault(); }, { passive: false });
+        // ピンチアウトなどのマルチタッチを防止
+        document.addEventListener('touchstart', e => { 
+            if (e.touches.length > 1) { e.preventDefault(); }
         }, { passive: false });
 
-        // データ定義
+        // ---------------------------------------------------
+        // ゲームデータ・ロジック
+        // ---------------------------------------------------
         const PIECES = [
             null,
             [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], // I
@@ -297,8 +305,8 @@
         let nextPieceType = 1;
         
         let dropCounter = 0, dropInterval = 1000, lastTime = 0;
-        let lockDelayCounter = 0; // ロックダウンディレイ用タイマー
-        const LOCK_DELAY = 600;   // 自然落下後の猶予時間（0.6秒）
+        let lockDelayCounter = 0; 
+        const LOCK_DELAY = 600;   
 
         let gameState = 'start'; 
         let animationId = null;
@@ -351,7 +359,6 @@
             }
         }
 
-        // --- UI演出 ---
         function showPopup(text, color) {
             const popup = document.createElement('div');
             popup.className = 'popup-text';
@@ -361,7 +368,6 @@
             setTimeout(() => { if(popup.parentNode) popup.parentNode.removeChild(popup); }, 2000);
         }
 
-        // --- ゲームロジック ---
         function createPiece(typeId) { return JSON.parse(JSON.stringify(PIECES[typeId])); }
         function rotate(matrix, dir) {
             for (let y = 0; y < matrix.length; ++y) for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
@@ -414,42 +420,26 @@
             
             if (rowCount > 0) {
                 let baseScore = rowCount * rowCount * 100 * currentLevel;
-                let bonusText = "";
-                let bonusColor = "";
+                let bonusText = ""; let bonusColor = "";
 
-                if (rowCount === 4) {
-                    baseScore += 2000 * currentLevel;
-                    bonusText = "テトリス！";
-                    bonusColor = "#00E5FF"; 
-                }
+                if (rowCount === 4) { baseScore += 2000 * currentLevel; bonusText = "テトリス！"; bonusColor = "#00E5FF"; }
 
                 let isPerfectClear = true;
                 for (let y = 0; y < ROWS; y++) {
-                    for (let x = 0; x < COLS; x++) {
-                        if (board[y][x] !== 0) {
-                            isPerfectClear = false; break;
-                        }
-                    }
+                    for (let x = 0; x < COLS; x++) { if (board[y][x] !== 0) { isPerfectClear = false; break; } }
                     if (!isPerfectClear) break;
                 }
 
                 if (isPerfectClear) {
-                    baseScore += 5000 * currentLevel;
-                    bonusText = bonusText ? "全消し＆テトリス！" : "全消し！";
-                    bonusColor = "#FFEA00"; 
+                    baseScore += 5000 * currentLevel; bonusText = bonusText ? "全消し＆テトリス！" : "全消し！"; bonusColor = "#FFEA00"; 
                 }
 
-                player.score += baseScore;
-                totalLines += rowCount;
-                
+                player.score += baseScore; totalLines += rowCount;
                 currentLevel = Math.floor(totalLines / 10) + 1;
                 
-                // 落下速度の計算：レベルが上がると急激に速くなり、レベル10で少しゆっくりに戻って再加速する
                 if (currentLevel < 10) {
-                    // レベル1〜9：0.70乗で急激に加速 (1: 1000ms, 2: 700ms, 3: 490ms ...)
                     dropInterval = Math.max(60, 1000 * Math.pow(0.70, currentLevel - 1));
                 } else {
-                    // レベル10以降：基準を800ms(最初より少し速い)にリセットし、再び加速
                     let resetLevel = currentLevel - 9;
                     dropInterval = Math.max(60, 800 * Math.pow(0.70, resetLevel - 1));
                 }
@@ -457,42 +447,31 @@
                 document.getElementById('score').innerText = player.score;
                 document.getElementById('lines').innerText = totalLines;
                 document.getElementById('level').innerText = currentLevel;
-                
                 checkHighScore();
                 
-                if (bonusText) {
-                    playSound('bonus');
-                    showPopup(bonusText, bonusColor);
-                } else {
-                    playSound('clear');
-                }
+                if (bonusText) { playSound('bonus'); showPopup(bonusText, bonusColor); } else { playSound('clear'); }
             }
         }
 
-        // ロックダウン（固定）処理
         function lockPiece() {
             merge(board, player);
             playSound('drop');
             arenaSweep();
             playerReset();
-            lockDelayCounter = 0;
-            dropCounter = 0;
+            lockDelayCounter = 0; dropCounter = 0;
         }
 
         function playerHardDrop() {
             while (!collide(board, player)) player.pos.y++;
             player.pos.y--; 
             playSound('harddrop');
-            lockPiece(); // ハードドロップ時は即固定
+            lockPiece(); 
         }
 
         function playerMove(dir) {
             player.pos.x += dir;
-            if (collide(board, player)) {
-                player.pos.x -= dir;
-            } else {
-                playSound('move');
-                lockDelayCounter = 0; // 移動成功時は固定猶予をリセット
+            if (collide(board, player)) { player.pos.x -= dir; } else {
+                playSound('move'); lockDelayCounter = 0; 
             }
         }
 
@@ -502,22 +481,13 @@
                 player.pos.x += offset; offset = -(offset + (offset > 0 ? 1 : -1));
                 if (offset > 2) { rotate(player.matrix, -dir); player.pos.x = pos; return; }
             }
-            playSound('rotate');
-            lockDelayCounter = 0; // 回転成功時は固定猶予をリセット
+            playSound('rotate'); lockDelayCounter = 0;
         }
 
-        // --- 描画関連 ---
         function drawGrid() {
-            ctx.lineWidth = 0.03; // 線を少ししっかりさせる
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; // 透明度を上げて濃く表示
-            // 縦線
-            for (let x = 0; x <= COLS; x++) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROWS); ctx.stroke();
-            }
-            // 横線
-            for (let y = 0; y <= ROWS; y++) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(COLS, y); ctx.stroke();
-            }
+            ctx.lineWidth = 0.03; ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'; 
+            for (let x = 0; x <= COLS; x++) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROWS); ctx.stroke(); }
+            for (let y = 0; y <= ROWS; y++) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(COLS, y); ctx.stroke(); }
         }
 
         function drawMatrix(matrix, offset, ctx) {
@@ -534,16 +504,11 @@
         function drawGhost() {
             let ghostY = player.pos.y;
             while(!collide(board, {matrix: player.matrix, pos: {x: player.pos.x, y: ghostY + 1}})) ghostY++;
-            ctx.globalAlpha = 0.2; // 0.4から0.2に変更してより薄くする
-            drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); 
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 0.2; drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); ctx.globalAlpha = 1.0;
         }
         function draw() {
-            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); // 背景を黒に塗りつぶす
-            drawGrid(); // マス目を描画
-            drawMatrix(board, {x: 0, y: 0}, ctx); // 積まれたブロックを描画
-            drawGhost(); // ゴーストを描画
-            drawMatrix(player.matrix, player.pos, ctx); // 操作中のブロックを描画
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            drawGrid(); drawMatrix(board, {x: 0, y: 0}, ctx); drawGhost(); drawMatrix(player.matrix, player.pos, ctx); 
         }
         function drawNext() {
             nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
@@ -559,7 +524,6 @@
             nCtx.restore();
         }
 
-        // --- ループと入力 ---
         const inputState = { left: false, right: false, down: false, rotLeft: false, rotRight: false };
         const inputTimers = { left: 0, right: 0, rotLeft: 0, rotRight: 0 };
 
@@ -568,70 +532,146 @@
             const deltaTime = time - lastTime; lastTime = time;
             scheduleBGM();
 
-            // 連続入力処理 (移動：120ms間隔、回転：250ms間隔)
             const now = Date.now();
             if (inputState.left && now - inputTimers.left > 120) { playerMove(-1); inputTimers.left = now; }
             if (inputState.right && now - inputTimers.right > 120) { playerMove(1); inputTimers.right = now; }
             if (inputState.rotLeft && now - inputTimers.rotLeft > 250) { playerRotate(-1); inputTimers.rotLeft = now; }
             if (inputState.rotRight && now - inputTimers.rotRight > 250) { playerRotate(1); inputTimers.rotRight = now; }
 
-            // 落下・接地判定
             player.pos.y++;
             const isGrounded = collide(board, player);
             player.pos.y--;
 
             if (isGrounded) {
-                // 下にブロックがある（接地中）
                 lockDelayCounter += deltaTime;
-                // 下キー長押し時は即座(50ms)に固定、自然落下の時は0.6秒待って固定
-                if (lockDelayCounter >= LOCK_DELAY || (inputState.down && lockDelayCounter >= 50)) {
-                    lockPiece();
-                }
+                if (lockDelayCounter >= LOCK_DELAY || (inputState.down && lockDelayCounter >= 50)) { lockPiece(); }
             } else {
-                // 空中（落下中）
-                lockDelayCounter = 0;
-                dropCounter += deltaTime;
+                lockDelayCounter = 0; dropCounter += deltaTime;
                 const interval = inputState.down ? 50 : dropInterval;
-                if (dropCounter > interval) {
-                    player.pos.y++;
-                    dropCounter = 0;
-                }
+                if (dropCounter > interval) { player.pos.y++; dropCounter = 0; }
             }
 
             draw();
             animationId = requestAnimationFrame(update);
         }
 
+        // ---------------------------------------------------
+        // コントロール設定（タッチ＆マウス対応）
+        // ---------------------------------------------------
         function setupControls() {
             const bindBtn = (id, key, action, isContinuous) => {
                 const btn = document.getElementById(id);
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault(); if (gameState !== 'playing') return;
+                
+                const startHandler = (e) => {
+                    if(e.cancelable) e.preventDefault(); 
+                    if (gameState !== 'playing') return;
                     btn.classList.add('active');
                     if (isContinuous && key) { inputState[key] = true; inputTimers[key] = Date.now(); }
-                    if (action) action(); // 押した瞬間に1回実行
-                }, {passive: false});
+                    if (action) action(); 
+                };
                 const endHandler = (e) => {
-                    e.preventDefault(); btn.classList.remove('active');
+                    if(e.cancelable) e.preventDefault(); 
+                    btn.classList.remove('active');
                     if (isContinuous && key) inputState[key] = false;
                 };
-                btn.addEventListener('touchend', endHandler); btn.addEventListener('mouseleave', endHandler);
+
+                // タッチ対応
+                btn.addEventListener('touchstart', startHandler, {passive: false});
+                btn.addEventListener('touchend', endHandler, {passive: false});
+                btn.addEventListener('touchcancel', endHandler, {passive: false});
+
+                // マウス対応（PC用）
+                btn.addEventListener('mousedown', startHandler);
+                btn.addEventListener('mouseup', endHandler);
+                btn.addEventListener('mouseleave', endHandler);
             };
 
-            // 移動 (連続入力ON)
             bindBtn('btn-left', 'left', () => playerMove(-1), true);
             bindBtn('btn-right', 'right', () => playerMove(1), true);
             bindBtn('btn-drop', 'down', null, true);
-            
-            // ハードドロップ (連続入力OFF)
             bindBtn('btn-up', null, () => playerHardDrop(), false);
-            
-            // 回転 (連続入力ONに対応)
             bindBtn('btn-rot-left', 'rotLeft', () => playerRotate(-1), true);
             bindBtn('btn-rot-right', 'rotRight', () => playerRotate(1), true);
+
+            // 状態ボタン（スタート/ポーズ用）
+            const stateBtn = document.getElementById('btn-state');
+            const stateStartHandler = (e) => {
+                if(e.cancelable) e.preventDefault();
+                stateBtn.classList.add('active');
+                handleStateAction();
+            };
+            const stateEndHandler = (e) => {
+                if(e.cancelable) e.preventDefault();
+                stateBtn.classList.remove('active');
+            };
+            stateBtn.addEventListener('touchstart', stateStartHandler, {passive: false});
+            stateBtn.addEventListener('touchend', stateEndHandler, {passive: false});
+            stateBtn.addEventListener('mousedown', stateStartHandler);
+            stateBtn.addEventListener('mouseup', stateEndHandler);
+            stateBtn.addEventListener('mouseleave', stateEndHandler);
+            
+            // オーバーレイのPLAYボタン
+            document.getElementById('btn-action').addEventListener('click', handleStateAction);
         }
 
-        // --- 状態管理 ---
+        // ---------------------------------------------------
+        // キーボード操作対応（PC用）
+        // ---------------------------------------------------
+        document.addEventListener('keydown', (e) => {
+            // スペースやエンターでゲーム開始/ポーズ
+            if (e.code === 'Space' || e.code === 'Enter') {
+                e.preventDefault();
+                // プレイ中でなければ開始、プレイ中でスペースならハードドロップ
+                if (gameState !== 'playing') {
+                    handleStateAction();
+                    return;
+                } else if (e.code === 'Space') {
+                    document.getElementById('btn-up').classList.add('active');
+                    playerHardDrop();
+                    return;
+                }
+            }
+
+            if (gameState !== 'playing' || e.repeat) return; // 押しっぱなしによる連続発火を防止
+
+            switch(e.code) {
+                case 'ArrowLeft': case 'KeyA': 
+                    inputState.left = true; inputTimers.left = Date.now(); playerMove(-1); 
+                    document.getElementById('btn-left').classList.add('active'); break;
+                case 'ArrowRight': case 'KeyD': 
+                    inputState.right = true; inputTimers.right = Date.now(); playerMove(1); 
+                    document.getElementById('btn-right').classList.add('active'); break;
+                case 'ArrowDown': case 'KeyS': 
+                    inputState.down = true; 
+                    document.getElementById('btn-drop').classList.add('active'); break;
+                case 'ArrowUp': case 'KeyW': 
+                    playerHardDrop(); 
+                    document.getElementById('btn-up').classList.add('active'); break;
+                case 'KeyZ': case 'KeyQ':
+                    inputState.rotLeft = true; inputTimers.rotLeft = Date.now(); playerRotate(-1); 
+                    document.getElementById('btn-rot-left').classList.add('active'); break;
+                case 'KeyX': case 'KeyE':
+                    inputState.rotRight = true; inputTimers.rotRight = Date.now(); playerRotate(1); 
+                    document.getElementById('btn-rot-right').classList.add('active'); break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft': case 'KeyA': inputState.left = false; document.getElementById('btn-left').classList.remove('active'); break;
+                case 'ArrowRight': case 'KeyD': inputState.right = false; document.getElementById('btn-right').classList.remove('active'); break;
+                case 'ArrowDown': case 'KeyS': inputState.down = false; document.getElementById('btn-drop').classList.remove('active'); break;
+                case 'ArrowUp': case 'KeyW': document.getElementById('btn-up').classList.remove('active'); break;
+                case 'Space': document.getElementById('btn-up').classList.remove('active'); break;
+                case 'KeyZ': case 'KeyQ': inputState.rotLeft = false; document.getElementById('btn-rot-left').classList.remove('active'); break;
+                case 'KeyX': case 'KeyE': inputState.rotRight = false; document.getElementById('btn-rot-right').classList.remove('active'); break;
+            }
+        });
+
+
+        // ---------------------------------------------------
+        // 状態管理・その他
+        // ---------------------------------------------------
         function changeState(newState) {
             gameState = newState;
             const stateBtn = document.getElementById('btn-state');
@@ -643,22 +683,18 @@
             const oBtn = document.getElementById('btn-action');
 
             if (newState === 'start') {
-                stateBtn.className = 'state-start'; sIcon.innerText = '▶'; sText.innerText = 'START';
-                sIcon.style.marginLeft = '2px';
-                overlay.style.display = 'flex'; oTitle.innerText = 'TETRIS'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'TAP TO START'; oBtn.innerText = 'PLAY';
+                stateBtn.className = 'state-start'; sIcon.innerText = '▶'; sText.innerText = 'START'; sIcon.style.marginLeft = '2px';
+                overlay.style.display = 'flex'; oTitle.innerText = 'TETRIS'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'TAP TO START\n(Or Press Enter)'; oBtn.innerText = 'PLAY';
             } else if (newState === 'playing') {
-                stateBtn.className = 'state-pause'; sIcon.innerText = '⏸'; sText.innerText = 'PAUSE';
-                sIcon.style.marginLeft = '0px';
+                stateBtn.className = 'state-pause'; sIcon.innerText = '⏸'; sText.innerText = 'PAUSE'; sIcon.style.marginLeft = '0px';
                 overlay.style.display = 'none';
                 lastTime = performance.now();
                 update();
             } else if (newState === 'paused') {
-                stateBtn.className = 'state-resume'; sIcon.innerText = '▶'; sText.innerText = 'RESUME';
-                sIcon.style.marginLeft = '2px';
+                stateBtn.className = 'state-resume'; sIcon.innerText = '▶'; sText.innerText = 'RESUME'; sIcon.style.marginLeft = '2px';
                 overlay.style.display = 'flex'; oTitle.innerText = 'PAUSE'; oTitle.style.color = '#2196F3'; oMsg.innerText = 'Game is Paused'; oBtn.innerText = 'RESUME';
             } else if (newState === 'gameover') {
-                stateBtn.className = 'state-retry'; sIcon.innerText = '↺'; sText.innerText = 'RETRY';
-                sIcon.style.marginLeft = '0px';
+                stateBtn.className = 'state-retry'; sIcon.innerText = '↺'; sText.innerText = 'RETRY'; sIcon.style.marginLeft = '0px';
                 playSound('gameover');
                 overlay.style.display = 'flex'; oTitle.innerText = 'GAME OVER'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'SCORE: ' + player.score; oBtn.innerText = 'RETRY';
             }
@@ -670,9 +706,7 @@
                 board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
                 player.score = 0; currentLevel = 1; totalLines = 0; dropInterval = 1000; lockDelayCounter = 0;
                 document.getElementById('score').innerText = 0; document.getElementById('lines').innerText = 0; document.getElementById('level').innerText = 1;
-                
                 document.querySelectorAll('.popup-text').forEach(e => e.remove());
-                
                 if (audioCtx) { nextNoteTime = audioCtx.currentTime; noteIndex = 0; }
                 nextPieceType = (Math.random() * 7 | 0) + 1;
                 playerReset();
@@ -684,9 +718,6 @@
                 changeState('playing');
             }
         }
-
-        document.getElementById('btn-state').addEventListener('touchstart', (e) => { e.preventDefault(); handleStateAction(); }, {passive: false});
-        document.getElementById('btn-action').addEventListener('click', handleStateAction);
 
         function resize() {
             const container = document.getElementById('game-area');
