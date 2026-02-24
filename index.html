@@ -86,7 +86,32 @@
             backdrop-filter: blur(5px);
         }
         #overlay h1 { font-size: 2.5rem; color: #FF5252; margin: 0 0 10px 0; }
-        #overlay p { color: #ccc; margin-bottom: 25px; font-size: 1.2rem; }
+        #overlay p { color: #ccc; margin-bottom: 20px; font-size: 1.2rem; }
+        
+        /* キーボードガイド */
+        #keyboard-guide {
+            background: rgba(30,30,30,0.85);
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            font-size: 0.85rem;
+            color: #ccc;
+            line-height: 1.8;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        #keyboard-guide span {
+            display: inline-block;
+            background: #444;
+            padding: 0 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #fff;
+            box-shadow: 0 2px 0 #111;
+            margin: 0 2px;
+        }
+
         #btn-action {
             padding: 12px 40px;
             font-size: 1.2rem;
@@ -155,12 +180,13 @@
             box-shadow: 0 4px 0 #111;
             position: absolute;
             cursor: pointer;
+            transition: transform 0.05s, box-shadow 0.05s, background 0.05s;
         }
         .d-btn:active, .d-btn.active { transform: translateY(4px); box-shadow: none; background: #666; }
         
-        #btn-drop { top: 0px; left: 50%; transform: translateX(-50%); } /* 下降ボタンを上に配置 */
-        #btn-left { bottom: 0; left: 0; }   /* 左移動ボタンを下に配置 */
-        #btn-right { bottom: 0; right: 0; } /* 右移動ボタンを下に配置 */
+        #btn-drop { top: 0px; left: 50%; transform: translateX(-50%); } 
+        #btn-left { bottom: 0; left: 0; }   
+        #btn-right { bottom: 0; right: 0; } 
 
         /* 中央（状態切り替えボタン） */
         .center-side {
@@ -211,6 +237,7 @@
             box-shadow: 0 4px 0 rgba(0,0,0,0.8);
             position: absolute;
             cursor: pointer;
+            transition: transform 0.05s, box-shadow 0.05s, background 0.05s;
         }
         .a-btn:active, .a-btn.active { transform: translateY(4px); box-shadow: none; }
         
@@ -218,6 +245,10 @@
         #btn-rot-left { bottom: 0; left: 0; background: #1976D2; box-shadow: 0 4px 0 #0D47A1; } 
         #btn-rot-right { bottom: 0; right: 0; background: #D32F2F; box-shadow: 0 4px 0 #B71C1C; } 
 
+        @media (max-width: 400px) {
+            #keyboard-guide { padding: 10px; font-size: 0.75rem; }
+            #overlay h1 { font-size: 2rem; }
+        }
     </style>
 </head>
 <body>
@@ -241,6 +272,16 @@
         <div id="overlay">
             <h1 id="overlay-title">TETRIS</h1>
             <p id="overlay-msg">TAP TO START</p>
+            
+            <div id="keyboard-guide">
+                <div style="font-weight:bold; margin-bottom:10px; text-align:center; color:#FFCA28;">[ KEYBOARD CONTROLS ]</div>
+                <div><span>←</span> <span>→</span> : 左右移動</div>
+                <div><span>↓</span> : 落下を速くする</div>
+                <div><span>↑</span> / <span>Space</span> : ハードドロップ (即落下)</div>
+                <div><span>Z</span> / <span>X</span> : 回転 (左 / 右)</div>
+                <div><span>Enter</span> : スタート / ポーズ</div>
+            </div>
+
             <button id="btn-action">PLAY</button>
         </div>
     </div>
@@ -270,18 +311,13 @@
     </div>
 
     <script>
-        // ---------------------------------------------------
-        // ズーム防止処理（さらに強力に）
-        // ---------------------------------------------------
+        // ズーム防止処理
         document.addEventListener('dblclick', function(e) { e.preventDefault(); }, { passive: false });
-        // ピンチアウトなどのマルチタッチを防止
         document.addEventListener('touchstart', e => { 
             if (e.touches.length > 1) { e.preventDefault(); }
         }, { passive: false });
 
-        // ---------------------------------------------------
         // ゲームデータ・ロジック
-        // ---------------------------------------------------
         const PIECES = [
             null,
             [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], // I
@@ -307,6 +343,11 @@
         let dropCounter = 0, dropInterval = 1000, lastTime = 0;
         let lockDelayCounter = 0; 
         const LOCK_DELAY = 600;   
+        
+        // ブロック出現のディレイ関連
+        let isSpawning = false;
+        let spawnDelayTimer = 0;
+        const SPAWN_DELAY = 250; // ブロック固定後、次のブロックが出るまでの時間（ミリ秒）
 
         let gameState = 'start'; 
         let animationId = null;
@@ -457,11 +498,15 @@
             merge(board, player);
             playSound('drop');
             arenaSweep();
-            playerReset();
-            lockDelayCounter = 0; dropCounter = 0;
+            
+            // 即座に出現させず、遅延を入れる
+            player.matrix = null; 
+            isSpawning = true;
+            spawnDelayTimer = SPAWN_DELAY;
         }
 
         function playerHardDrop() {
+            if (!player.matrix) return; 
             while (!collide(board, player)) player.pos.y++;
             player.pos.y--; 
             playSound('harddrop');
@@ -469,6 +514,7 @@
         }
 
         function playerMove(dir) {
+            if (!player.matrix) return;
             player.pos.x += dir;
             if (collide(board, player)) { player.pos.x -= dir; } else {
                 playSound('move'); lockDelayCounter = 0; 
@@ -476,6 +522,7 @@
         }
 
         function playerRotate(dir) {
+            if (!player.matrix) return;
             const pos = player.pos.x; let offset = 1; rotate(player.matrix, dir);
             while (collide(board, player)) {
                 player.pos.x += offset; offset = -(offset + (offset > 0 ? 1 : -1));
@@ -502,13 +549,19 @@
             });
         }
         function drawGhost() {
+            if (!player.matrix) return;
             let ghostY = player.pos.y;
             while(!collide(board, {matrix: player.matrix, pos: {x: player.pos.x, y: ghostY + 1}})) ghostY++;
             ctx.globalAlpha = 0.2; drawMatrix(player.matrix, {x: player.pos.x, y: ghostY}, ctx); ctx.globalAlpha = 1.0;
         }
         function draw() {
             ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
-            drawGrid(); drawMatrix(board, {x: 0, y: 0}, ctx); drawGhost(); drawMatrix(player.matrix, player.pos, ctx); 
+            drawGrid(); 
+            drawMatrix(board, {x: 0, y: 0}, ctx); 
+            if (player.matrix) {
+                drawGhost(); 
+                drawMatrix(player.matrix, player.pos, ctx); 
+            }
         }
         function drawNext() {
             nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
@@ -531,6 +584,19 @@
             if (gameState !== 'playing') return;
             const deltaTime = time - lastTime; lastTime = time;
             scheduleBGM();
+
+            if (isSpawning) {
+                spawnDelayTimer -= deltaTime;
+                if (spawnDelayTimer <= 0) {
+                    isSpawning = false;
+                    playerReset();
+                    lockDelayCounter = 0; 
+                    dropCounter = 0;
+                }
+                draw();
+                animationId = requestAnimationFrame(update);
+                return; 
+            }
 
             const now = Date.now();
             if (inputState.left && now - inputTimers.left > 120) { playerMove(-1); inputTimers.left = now; }
@@ -555,9 +621,7 @@
             animationId = requestAnimationFrame(update);
         }
 
-        // ---------------------------------------------------
         // コントロール設定（タッチ＆マウス対応）
-        // ---------------------------------------------------
         function setupControls() {
             const bindBtn = (id, key, action, isContinuous) => {
                 const btn = document.getElementById(id);
@@ -575,12 +639,9 @@
                     if (isContinuous && key) inputState[key] = false;
                 };
 
-                // タッチ対応
                 btn.addEventListener('touchstart', startHandler, {passive: false});
                 btn.addEventListener('touchend', endHandler, {passive: false});
                 btn.addEventListener('touchcancel', endHandler, {passive: false});
-
-                // マウス対応（PC用）
                 btn.addEventListener('mousedown', startHandler);
                 btn.addEventListener('mouseup', endHandler);
                 btn.addEventListener('mouseleave', endHandler);
@@ -593,7 +654,6 @@
             bindBtn('btn-rot-left', 'rotLeft', () => playerRotate(-1), true);
             bindBtn('btn-rot-right', 'rotRight', () => playerRotate(1), true);
 
-            // 状態ボタン（スタート/ポーズ用）
             const stateBtn = document.getElementById('btn-state');
             const stateStartHandler = (e) => {
                 if(e.cancelable) e.preventDefault();
@@ -610,29 +670,32 @@
             stateBtn.addEventListener('mouseup', stateEndHandler);
             stateBtn.addEventListener('mouseleave', stateEndHandler);
             
-            // オーバーレイのPLAYボタン
             document.getElementById('btn-action').addEventListener('click', handleStateAction);
         }
 
-        // ---------------------------------------------------
-        // キーボード操作対応（PC用）
-        // ---------------------------------------------------
+        // ★ キーボード操作対応を完全修正
         document.addEventListener('keydown', (e) => {
-            // スペースやエンターでゲーム開始/ポーズ
-            if (e.code === 'Space' || e.code === 'Enter') {
-                e.preventDefault();
-                // プレイ中でなければ開始、プレイ中でスペースならハードドロップ
-                if (gameState !== 'playing') {
-                    handleStateAction();
-                    return;
-                } else if (e.code === 'Space') {
-                    document.getElementById('btn-up').classList.add('active');
-                    playerHardDrop();
-                    return;
-                }
+            // スクロールなどのデフォルト動作を防ぐ
+            if (['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                if(e.cancelable) e.preventDefault();
             }
 
-            if (gameState !== 'playing' || e.repeat) return; // 押しっぱなしによる連続発火を防止
+            // ゲームプレイ中でない場合はスタートとポーズのみ受け付ける
+            if (gameState !== 'playing') {
+                if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) {
+                    handleStateAction();
+                }
+                return;
+            }
+
+            // ポーズ/再開用
+            if (e.code === 'Enter' && !e.repeat) {
+                handleStateAction();
+                return;
+            }
+
+            // 押しっぱなしの連続発火は無視（押し始めの1回だけ処理）
+            if (e.repeat) return; 
 
             switch(e.code) {
                 case 'ArrowLeft': case 'KeyA': 
@@ -644,9 +707,13 @@
                 case 'ArrowDown': case 'KeyS': 
                     inputState.down = true; 
                     document.getElementById('btn-drop').classList.add('active'); break;
-                case 'ArrowUp': case 'KeyW': 
-                    playerHardDrop(); 
-                    document.getElementById('btn-up').classList.add('active'); break;
+                
+                // ★ハードドロップのボタン沈み込みを他のキーと同じロジックに修正
+                case 'ArrowUp': case 'KeyW': case 'Space': 
+                    document.getElementById('btn-up').classList.add('active');
+                    if (player.matrix) playerHardDrop(); 
+                    break;
+
                 case 'KeyZ': case 'KeyQ':
                     inputState.rotLeft = true; inputTimers.rotLeft = Date.now(); playerRotate(-1); 
                     document.getElementById('btn-rot-left').classList.add('active'); break;
@@ -656,22 +723,23 @@
             }
         });
 
+        // ★ キーを離した時にしっかりボタンを戻す処理
         document.addEventListener('keyup', (e) => {
             switch(e.code) {
                 case 'ArrowLeft': case 'KeyA': inputState.left = false; document.getElementById('btn-left').classList.remove('active'); break;
                 case 'ArrowRight': case 'KeyD': inputState.right = false; document.getElementById('btn-right').classList.remove('active'); break;
                 case 'ArrowDown': case 'KeyS': inputState.down = false; document.getElementById('btn-drop').classList.remove('active'); break;
-                case 'ArrowUp': case 'KeyW': document.getElementById('btn-up').classList.remove('active'); break;
-                case 'Space': document.getElementById('btn-up').classList.remove('active'); break;
+                
+                // ★ハードドロップキーを離した時にクラスを外す
+                case 'ArrowUp': case 'KeyW': case 'Space': 
+                    document.getElementById('btn-up').classList.remove('active'); break;
+
                 case 'KeyZ': case 'KeyQ': inputState.rotLeft = false; document.getElementById('btn-rot-left').classList.remove('active'); break;
                 case 'KeyX': case 'KeyE': inputState.rotRight = false; document.getElementById('btn-rot-right').classList.remove('active'); break;
             }
         });
 
-
-        // ---------------------------------------------------
         // 状態管理・その他
-        // ---------------------------------------------------
         function changeState(newState) {
             gameState = newState;
             const stateBtn = document.getElementById('btn-state');
@@ -681,10 +749,12 @@
             const oTitle = document.getElementById('overlay-title');
             const oMsg = document.getElementById('overlay-msg');
             const oBtn = document.getElementById('btn-action');
+            const kGuide = document.getElementById('keyboard-guide');
 
             if (newState === 'start') {
                 stateBtn.className = 'state-start'; sIcon.innerText = '▶'; sText.innerText = 'START'; sIcon.style.marginLeft = '2px';
-                overlay.style.display = 'flex'; oTitle.innerText = 'TETRIS'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'TAP TO START\n(Or Press Enter)'; oBtn.innerText = 'PLAY';
+                overlay.style.display = 'flex'; oTitle.innerText = 'TETRIS'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'TAP TO START'; oBtn.innerText = 'PLAY';
+                kGuide.style.display = 'block'; 
             } else if (newState === 'playing') {
                 stateBtn.className = 'state-pause'; sIcon.innerText = '⏸'; sText.innerText = 'PAUSE'; sIcon.style.marginLeft = '0px';
                 overlay.style.display = 'none';
@@ -693,10 +763,12 @@
             } else if (newState === 'paused') {
                 stateBtn.className = 'state-resume'; sIcon.innerText = '▶'; sText.innerText = 'RESUME'; sIcon.style.marginLeft = '2px';
                 overlay.style.display = 'flex'; oTitle.innerText = 'PAUSE'; oTitle.style.color = '#2196F3'; oMsg.innerText = 'Game is Paused'; oBtn.innerText = 'RESUME';
+                kGuide.style.display = 'none';
             } else if (newState === 'gameover') {
                 stateBtn.className = 'state-retry'; sIcon.innerText = '↺'; sText.innerText = 'RETRY'; sIcon.style.marginLeft = '0px';
                 playSound('gameover');
                 overlay.style.display = 'flex'; oTitle.innerText = 'GAME OVER'; oTitle.style.color = '#FF5252'; oMsg.innerText = 'SCORE: ' + player.score; oBtn.innerText = 'RETRY';
+                kGuide.style.display = 'none';
             }
         }
 
@@ -705,6 +777,7 @@
             if (gameState === 'start' || gameState === 'gameover') {
                 board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
                 player.score = 0; currentLevel = 1; totalLines = 0; dropInterval = 1000; lockDelayCounter = 0;
+                isSpawning = false; spawnDelayTimer = 0; 
                 document.getElementById('score').innerText = 0; document.getElementById('lines').innerText = 0; document.getElementById('level').innerText = 1;
                 document.querySelectorAll('.popup-text').forEach(e => e.remove());
                 if (audioCtx) { nextNoteTime = audioCtx.currentTime; noteIndex = 0; }
