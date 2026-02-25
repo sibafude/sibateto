@@ -185,6 +185,9 @@
         .d-btn:active, .d-btn.active { transform: translateY(4px); box-shadow: none; background: #666; }
         
         #btn-drop { top: 0px; left: 50%; transform: translateX(-50%); } 
+        /* translateXを維持したまま沈み込むように設定 */
+        #btn-drop:active, #btn-drop.active { transform: translate(-50%, 4px); }
+        
         #btn-left { bottom: 0; left: 0; }   
         #btn-right { bottom: 0; right: 0; } 
 
@@ -193,7 +196,7 @@
             position: absolute;
             bottom: calc(15px + env(safe-area-inset-bottom));
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%); /* 親要素で中央寄せ */
             z-index: 10;
         }
         #btn-state {
@@ -209,7 +212,9 @@
             box-shadow: 0 4px 0 rgba(0,0,0,0.5);
             transition: transform 0.1s, background 0.2s;
             cursor: pointer;
+            /* ここにあった transform: translateX(-50%); を削除して位置ずれを修正 */
         }
+        /* 親要素で位置が調整されているため、Y方向の移動だけでOK */
         #btn-state:active, #btn-state.active { transform: translateY(4px); box-shadow: none; }
         
         .state-icon { font-size: 1.1rem; line-height: 1; margin-bottom: 2px; }
@@ -242,6 +247,9 @@
         .a-btn:active, .a-btn.active { transform: translateY(4px); box-shadow: none; }
         
         #btn-up { top: 0px; left: 50%; transform: translateX(-50%); background: #757575; box-shadow: 0 4px 0 #424242; } 
+        /* translateXを維持したまま沈み込むように設定 */
+        #btn-up:active, #btn-up.active { transform: translate(-50%, 4px); }
+
         #btn-rot-left { bottom: 0; left: 0; background: #1976D2; box-shadow: 0 4px 0 #0D47A1; } 
         #btn-rot-right { bottom: 0; right: 0; background: #D32F2F; box-shadow: 0 4px 0 #B71C1C; } 
 
@@ -673,14 +681,12 @@
             document.getElementById('btn-action').addEventListener('click', handleStateAction);
         }
 
-        // ★ キーボード操作対応を完全修正
+        // キーボード操作対応
         document.addEventListener('keydown', (e) => {
-            // スクロールなどのデフォルト動作を防ぐ
             if (['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
                 if(e.cancelable) e.preventDefault();
             }
 
-            // ゲームプレイ中でない場合はスタートとポーズのみ受け付ける
             if (gameState !== 'playing') {
                 if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) {
                     handleStateAction();
@@ -688,13 +694,11 @@
                 return;
             }
 
-            // ポーズ/再開用
             if (e.code === 'Enter' && !e.repeat) {
                 handleStateAction();
                 return;
             }
 
-            // 押しっぱなしの連続発火は無視（押し始めの1回だけ処理）
             if (e.repeat) return; 
 
             switch(e.code) {
@@ -708,7 +712,6 @@
                     inputState.down = true; 
                     document.getElementById('btn-drop').classList.add('active'); break;
                 
-                // ★ハードドロップのボタン沈み込みを他のキーと同じロジックに修正
                 case 'ArrowUp': case 'KeyW': case 'Space': 
                     document.getElementById('btn-up').classList.add('active');
                     if (player.matrix) playerHardDrop(); 
@@ -723,14 +726,13 @@
             }
         });
 
-        // ★ キーを離した時にしっかりボタンを戻す処理
+        // キーを離した時にしっかりボタンを戻す処理
         document.addEventListener('keyup', (e) => {
             switch(e.code) {
                 case 'ArrowLeft': case 'KeyA': inputState.left = false; document.getElementById('btn-left').classList.remove('active'); break;
                 case 'ArrowRight': case 'KeyD': inputState.right = false; document.getElementById('btn-right').classList.remove('active'); break;
                 case 'ArrowDown': case 'KeyS': inputState.down = false; document.getElementById('btn-drop').classList.remove('active'); break;
                 
-                // ★ハードドロップキーを離した時にクラスを外す
                 case 'ArrowUp': case 'KeyW': case 'Space': 
                     document.getElementById('btn-up').classList.remove('active'); break;
 
